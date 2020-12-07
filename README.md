@@ -1,45 +1,50 @@
 # Docker image for Gitolite
 
-This image allows you to run a git server in a container with OpenSSH and [Gitolite](https://github.com/sitaramc/gitolite#readme).
+Forked from [the original](https://github.com/jgiannuzzi/docker-gitolite) location, as produced by [Jonathan Giannuzzi](https://github.com/jgiannuzzi).
 
-Based on Alpine Linux.
 
 ## Quick setup
 
-Create volumes for your SSH server host keys and for your Gitolite config and repositories
+You'll need two directories to store state:
 
-* Docker >= 1.9
+* SSH keys for admin-purposes
+* Repository locations
 
-        docker volume create --name gitolite-sshkeys
-        docker volume create --name gitolite-git
+Create them like so:
 
-* Docker < 1.9
+        mkdir -p $(pwd)/state/keys
+        mkdir -p $(pwd)/state/repos
 
-        docker create --name gitolite-data -v /etc/ssh/keys -v /var/lib/git tianon/true
+Launch like this the first time:
 
-Setup Gitolite with yourself as the administrator:
+        docker run --rm -e SSH_KEY="$(cat ~/.ssh/id_rsa.pub)" -e SSH_KEY_NAME="$(whoami)" -v $(pwd)/state/keys:/etc/ssh/keys -v $(pwd)/state/repos:/var/lib/git jgiannuzzi/gitolite true
 
-* Docker >= 1.10
+Once you've done that the initial SSH keys, etc, will be created.  Run the service for real like so:
 
-        docker run --rm -e SSH_KEY="$(cat ~/.ssh/id_rsa.pub)" -e SSH_KEY_NAME="$(whoami)" -v gitolite-sshkeys:/etc/ssh/keys -v gitolite-git:/var/lib/git jgiannuzzi/gitolite true
+        docker run -d --name gitolite -p 4444:22 -v $(pwd)/state/keys:/etc/ssh/keys -v $(pwd)/state/repos:/var/lib/git jgiannuzzi/gitolite
 
-* Docker == 1.9 (There is a bug in `docker run --rm` that removes volumes when removing the container)
 
-        docker run --name gitolite-setup -e SSH_KEY="$(cat ~/.ssh/id_rsa.pub)" -e SSH_KEY_NAME="$(whoami)" -v gitolite-sshkeys:/etc/ssh/keys -v gitolite-git:/var/lib/git jgiannuzzi/gitolite true
-        docker rm gitolite-setup
+## Post Launch
 
-* Docker < 1.9
+Once launched clone the repository, and update as appropriate:
 
-        docker run --rm -e SSH_KEY="$(cat ~/.ssh/id_rsa.pub)" -e SSH_KEY_NAME="$(whoami)" --volumes-from gitolite-data jgiannuzzi/gitolite true
+        git clone ssh://git@localhost:4444/gitolite-admin.git
 
-Finally run your Gitolite container in the background:
 
-* Docker >= 1.9
+## docker compose setup
 
-        docker run -d --name gitolite -p 22:22 -v gitolite-sshkeys:/etc/ssh/keys -v gitolite-git:/var/lib/git jgiannuzzi/gitolite
+Something like this:
 
-* Docker < 1.9
+    version: "3.8"
+    services:
+      git_host:
+        restart: always
+        image: jgiannuzzi/gitolite
+        ports:
+          - "4444:22"
+        volumes:
+          - /srv/git.steve.fi/gitolite/repos:/var/lib/git
+          - /srv/git.steve.fi/gitolite/keys:/etc/ssh/keys
 
-        docker run -d --name gitolite -p 22:22 --volumes-from gitolite-data jgiannuzzi/gitolite
 
-You can then add users and repos by following the [official guide](https://github.com/sitaramc/gitolite#adding-users-and-repos).
+
